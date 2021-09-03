@@ -10,47 +10,46 @@ const app = express();
 
 app.use(express.json());
 
-const results = [];
-let recived = 0;
-
 app.post('/', upload.single('extract'), (req, res) => {
-
+  
+  const results = [];
+  
+  let received = 0
+  let send = 0;
 
   const { filename } = req.file;
-
-  console.log('====================')
-  console.log(recived);
-
 
   fs.createReadStream(resolve(__dirname, '..', 'tmp', 'uploads', `${filename}`))
     .pipe(csvParse())
     .on('data', line => {
-      const [, type, value] = line;
-
-      Number(value);
+      let [, type, value, , , , date, situation] = line;
+    
+      value = value.replace(/\D/g, '');
 
       results.push({
         type,
         value,
-      })
+        date,
+        situation
+      });
     })
     .on('end', () => {
-      console.log(results);
-
-      results.map(({ value }) => {
-
-        if (value > 0) {
-          recived = value + recived;
+      results.map((result) => {
+        
+        if(result.situation === 'Recebido'){
+          received = value + received;
+        }
+        
+        if(result.situation === 'Enviado') {
+          send = value + send;
         }
 
       });
-
-      console.log(recived);
-      console.log('====================')
+    
+    fs.unlink(resolve(__dirname, '..', 'tmp', 'uploads', `${filename}`));
+    
+    return response.json({results, received, send});
     });
-
-
-  return res.json({ message: 'Hello World' });
 });
 
 app.listen(3000);
