@@ -1,6 +1,6 @@
 const express = require('express');
 const multer = require('multer');
-const csvParse = require('csv-parse');
+const { parse } = require('csv-parse');
 const fs = require('fs');
 const { resolve } = require('path');
 
@@ -11,43 +11,52 @@ const app = express();
 app.use(express.json());
 
 app.post('/', upload.single('extract'), (req, res) => {
+  const { bank } = req.body
 
   const results = [];
-
-  let received = 0, send = 0;
 
   const { filename } = req.file;
 
   fs.createReadStream(resolve(__dirname, '..', 'tmp', 'uploads', `${filename}`))
-    .pipe(csvParse())
+    .pipe(parse({ delimiter: ';' }))
     .on('data', line => {
-      let [, , value, , , , date, situation] = line;
+      if (bank === 'inter') {
+        let [date, history, description, value] = line;
 
-      results.push({
-        situation,
-        value: Number(value),
-        date,
-      });
+        results.push({
+          date,
+          history,
+          description,
+          amount: parseFloat(value.replace('.', '')),
+        });
+      }
+
+      if (bank === 'stone') {
+        let [, , value, , , , date, situation] = line;
+
+        results.push({
+          situation,
+          amount: parseFloat(value.replace('.', '')),
+          date,
+        });
+      }
     })
     .on('end', async () => {
-      results.map((result) => {
-        // const date = new Date(result.date);
-        // const day = date.getDate();
-        // const month = date.getMonth();
-        // const year = date.getFullYear();
 
-        /**
-         * Separar por mês
-         */
+      const received = results.reduce((acc, operation) => {
+        if (operation.amount > 0) {
+          acc += operation.amount
+        }
+        return acc
+      }, 0)
 
-        if (result.situation === 'Recebido') {
-          received = result.value + received;
+      const send = results.reduce((acc, operation) => {
+        if (operation.amount < 0) {
+          acc += operation.amount
         }
 
-        if (result.situation === 'Enviado') {
-          send = result.value + send;
-        }
-      });
+        return acc
+      }, 0)
 
       await fs.promises.unlink(resolve(__dirname, '..', 'tmp', 'uploads', `${filename}`));
 
@@ -71,4 +80,4 @@ app.post('/', upload.single('extract'), (req, res) => {
     });
 });
 
-app.listen(3000);
+app.listen(3333);
